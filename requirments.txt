@@ -1,0 +1,8 @@
+# Minimal runnable loop only.
+# This file intentionally excludes RAG, Milvus, Redis, Celery, and real external APIs for now.
+
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+pydantic==2.10.6
+langchain-core>=0.3.72,<0.4.0
+langgraph==0.6.11
