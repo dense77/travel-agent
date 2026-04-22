@@ -21,14 +21,16 @@ from travel_agent.app.graph.workflow import TravelGraphWorkflow
 from travel_agent.app.infra.config.settings import AppSettings
 # InMemoryMemoryStore 是当前默认的存储实现。
 from travel_agent.app.memory.memory_store import InMemoryMemoryStore
-# MockRAGService 是当前默认的 RAG 实现。
-from travel_agent.app.rag.service import MockRAGService
+# LocalMarkdownRAGService 是当前默认的本地 RAG 实现。
+from travel_agent.app.rag.service import LocalMarkdownRAGService
 # InlineTaskDispatcher 和 ThreadPoolTaskDispatcher 分别代表同步和线程池模式。
 from travel_agent.app.runtime.task_dispatcher import InlineTaskDispatcher, ThreadPoolTaskDispatcher
 # SessionService 负责会话相关业务编排。
 from travel_agent.app.services.session_service import SessionService
 # MockTravelSkill 是当前默认技能。
 from travel_agent.app.skills.mock_travel import MockTravelSkill
+# RAGTravelSkill 会基于检索结果生成 grounded 建议。
+from travel_agent.app.skills.rag_travel import RAGTravelSkill
 # SkillRegistry 负责统一管理技能。
 from travel_agent.app.skills.registry import SkillRegistry
 
@@ -54,15 +56,16 @@ def create_app() -> FastAPI:
     memory_store = InMemoryMemoryStore()
     # 创建技能注册表。
     skill_registry = SkillRegistry()
-    # 注册默认的 mock 技能。
+    # 注册默认的 grounded 技能和 mock 技能。
+    skill_registry.register(RAGTravelSkill())
     skill_registry.register(MockTravelSkill())
 
     # 创建规划器，并把默认技能名配置进去。
     planner = PlannerAgent(default_tool_name=settings.default_tool_name)
     # 创建执行器。
     executor = ExecutorAgent(skill_registry=skill_registry)
-    # 创建 mock RAG 服务。
-    rag_service = MockRAGService()
+    # 创建本地 Markdown RAG 服务。
+    rag_service = LocalMarkdownRAGService()
     # 创建完整工作流。
     workflow = TravelGraphWorkflow(planner=planner, executor=executor, rag_service=rag_service)
     # 根据配置创建任务分发器。

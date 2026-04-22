@@ -4,7 +4,7 @@
 
 它已经能跑通下面这条链路：
 
-`POST /sessions` 创建会话 -> `POST /sessions/{session_id}/run` 触发工作流 -> `Planner` 生成计划 -> `Executor` 调用 `Mock Skill` -> `GET /sessions/{session_id}` 查询结果
+`POST /sessions` 创建会话 -> `POST /sessions/{session_id}/run` 触发工作流 -> `Planner` 生成计划 -> `RAG` 检索本地知识 -> `Executor` 调用 `rag_travel` 技能 -> `GET /sessions/{session_id}` 查询结果
 
 当前实现与代码严格一致：
 - 有 FastAPI 接口
@@ -12,10 +12,12 @@
 - 有按城市条件分支的 LangGraph 演示
 - 有 Planner / Executor 分层
 - 有内存态会话存储
-- 有一个 `mock_travel` 技能
+- 有一个默认启用的 `rag_travel` 技能
+- 有一个可直接运行的本地 Markdown RAG 知识库
+- 仍保留 `mock_travel` 作为演示和回退能力
 - 没有前端页面
 - 没有真实模型调用
-- 没有 RAG / Milvus / Redis / 数据库 / 外部旅游 API
+- 没有 Milvus / Redis / 数据库 / 外部旅游 API
 
 ## 1. README：怎么启动、怎么跑、怎么验证
 

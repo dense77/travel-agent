@@ -17,6 +17,8 @@ from travel_agent.app.agents.executor.agent import ExecutorAgent
 from travel_agent.app.agents.planner.agent import PlannerAgent
 # 导入工作流状态类型。
 from travel_agent.app.graph.state import TravelGraphState
+# 导入城市识别工具。
+from travel_agent.app.infra.city_resolver import guess_trip_city
 # 导入 RAG 服务接口。
 from travel_agent.app.rag.service import BaseRAGService
 
@@ -39,21 +41,7 @@ def _print_step(message: str) -> None:
 
 def _guess_city(user_query: str, constraints: dict[str, Any]) -> str:
     """优先从约束中猜城市，再从 query 文本中猜。"""
-    # 先定义一组可能的城市字段名。
-    candidate_fields = ("destination_city", "target_city", "city", "start_city")
-    # 先遍历结构化约束字段。
-    for field in candidate_fields:
-        value = str(constraints.get(field, "")).strip()
-        if value:
-            return value
-
-    # 如果约束里没有，就从 query 文本里匹配常见城市关键词。
-    query = user_query.strip()
-    for city in ("上海", "北京", "杭州", "深圳", "广州"):
-        if city in query:
-            return city
-    # 实在识别不出来，就走“其他城市”。
-    return "其他城市"
+    return guess_trip_city(user_query, constraints)
 
 
 def _resolve_branch_name(selected_city: str) -> str:

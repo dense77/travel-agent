@@ -33,7 +33,7 @@ class AppSettings(BaseModel):
     # agent_max_iterations 控制工作流最多允许重规划几次。
     agent_max_iterations: int = 2
     # default_tool_name 是 Planner 默认写入计划的技能名。
-    default_tool_name: str = "mock_travel"
+    default_tool_name: str = "rag_travel"
     # enable_mock_rag 用来标记当前是否启用 mock RAG。
     enable_mock_rag: bool = True
     # api_prefix 用来给所有 API 路由统一加前缀。
@@ -62,7 +62,7 @@ class AppSettings(BaseModel):
             execution_mode=os.getenv("TRAVEL_AGENT_EXECUTION_MODE", "threadpool"),
             task_worker_size=int(os.getenv("TRAVEL_AGENT_TASK_WORKERS", "4")),
             agent_max_iterations=int(os.getenv("TRAVEL_AGENT_MAX_ITERATIONS", "2")),
-            default_tool_name=os.getenv("TRAVEL_AGENT_DEFAULT_TOOL", "mock_travel"),
+            default_tool_name=os.getenv("TRAVEL_AGENT_DEFAULT_TOOL", "rag_travel"),
             enable_mock_rag=os.getenv("TRAVEL_AGENT_ENABLE_MOCK_RAG", "true").lower() == "true",
             api_prefix=os.getenv("TRAVEL_AGENT_API_PREFIX", ""),
             event_log_limit=int(os.getenv("TRAVEL_AGENT_EVENT_LOG_LIMIT", "50")),

@@ -10,7 +10,7 @@ from travel_agent.app.agents.contracts import ExecutionPlan, PlanStep, SharedCon
 class PlannerAgent:
     """最小可运行的规划器。"""
 
-    def __init__(self, default_tool_name: str = "mock_travel") -> None:
+    def __init__(self, default_tool_name: str = "rag_travel") -> None:
         """初始化规划器。"""
         # 保存默认工具名，后续生成计划时会使用它。
         self._default_tool_name = default_tool_name
@@ -74,13 +74,13 @@ class PlannerAgent:
     def _needs_rag(self, context: SharedContext) -> bool:
         """判断当前问题是否值得先做知识检索。"""
         # 先把 query 拿出来，后面要多次判断。
-        query = context.user_query
+        query = context.user_query.strip()
         # 如果上下文里已经有检索知识，就不需要重复检索。
         if context.retrieved_knowledge:
             return False
-        # 用关键词做一个简单启发式判断。
-        keywords = ("攻略", "推荐", "玩法", "景点", "美食", "注意事项", "寺", "西湖")
-        return any(keyword in query for keyword in keywords)
+        # 当前项目默认走本地 RAG，
+        # 只要存在有效 query 就值得先尝试检索。
+        return bool(query)
 
     def _missing_info(self, context: SharedContext) -> list[str]:
         """判断当前还缺哪些关键约束。"""
