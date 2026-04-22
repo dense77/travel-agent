@@ -16,6 +16,7 @@ import urllib.request
 
 
 def main() -> int:
+    """查询指定会话的当前状态快照，并输出原始响应体。"""
     parser = argparse.ArgumentParser(description="Get a travel session.")
     # 这里读取的 session_id 应与前两个脚本使用的是同一个。
     parser.add_argument("session_id", help="Session ID returned by create_session.py")

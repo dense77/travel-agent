@@ -29,15 +29,18 @@ class BaseSkill(ABC):
 
     @abstractmethod
     def invoke(self, request: SkillRequest) -> SkillResult:
+        """执行技能核心逻辑，并返回统一格式的技能结果。"""
         # 所有具体技能都必须返回统一的 `SkillResult`，避免执行层分支处理。
         raise NotImplementedError
 
 
 class LangChainToolAdapter:
     def __init__(self, skill: BaseSkill) -> None:
+        """保存一个项目内部技能实例，供后续适配成 LangChain Tool。"""
         self._skill = skill
 
     def as_tool(self) -> StructuredTool:
+        """把内部技能包装成 LangChain/LangGraph 可直接调用的工具对象。"""
         # 每次按技能实例生成一个 Tool，方便直接挂到 LangChain/LangGraph 生态。
         return StructuredTool.from_function(
             func=self._invoke_tool,
@@ -47,6 +50,7 @@ class LangChainToolAdapter:
         )
 
     def _invoke_tool(self, session_id: str, parameters: dict, idempotency_key: str) -> dict:
+        """接收 Tool 层入参，转成项目内部请求模型后执行技能。"""
         # Tool 层最终返回原生字典，执行器再把它校验回 `SkillResult`。
         result = self._skill.invoke(
             SkillRequest(

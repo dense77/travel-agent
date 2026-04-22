@@ -1,9 +1,8 @@
-"""作用：
-- 定义 Planner、Executor、Skill、Memory 之间共享的数据契约。
+"""系统内部共享契约。
 
-约定：
-- 这里的模型是系统内部“说同一种话”的基础，改字段要同步多层逻辑。
-- 当前模型围绕最小闭环设计，只保留规划、执行观察和最终结果所需字段。
+说明：
+- 这些模型贯穿 API、Workflow、Agent、RAG、Skill、Memory。
+- 当前实现仍以最小可运行为主，但字段已经为异步执行、RAG、重规划预留。
 """
 
 from __future__ import annotations
@@ -14,26 +13,32 @@ from pydantic import BaseModel, Field
 
 
 class PlanStep(BaseModel):
-    # `tool_name` 为空时表示计划不完整；最小闭环里执行器会直接报错观察。
+    """单个可执行步骤。"""
+
     step_id: str
     action_type: str
     tool_name: Optional[str] = None
     input_payload: dict[str, Any] = Field(default_factory=dict)
     expected_output: str
-    status: str
+    status: str = "planned"
+    allow_cache: bool = True
 
 
 class ExecutionPlan(BaseModel):
-    # 当前只支持线性步骤列表，还不支持分支、循环和动态回退。
+    """Planner 输出的结构化执行计划。"""
+
     goal: str
     steps: list[PlanStep] = Field(default_factory=list)
     missing_info: list[str] = Field(default_factory=list)
     need_rag: bool = False
     need_replan: bool = False
+    strategy: str = "single_skill"
+    iteration_index: int = 0
 
 
 class ExecutionObservation(BaseModel):
-    # 每个 observation 对应一次步骤执行结果，是最终结果组装的原材料。
+    """Executor 对单步执行的观测结果。"""
+
     step_id: str
     source: str
     success: bool
@@ -43,14 +48,16 @@ class ExecutionObservation(BaseModel):
 
 
 class SkillRequest(BaseModel):
-    # `idempotency_key` 当前直接复用 step_id，约定同一步骤可被幂等识别。
+    """统一技能调用入参。"""
+
     session_id: str
     parameters: dict[str, Any] = Field(default_factory=dict)
     idempotency_key: str
 
 
 class SkillResult(BaseModel):
-    # `raw_ref` 用来记录原始证据引用；当前 mock 技能会返回一个伪 URI。
+    """统一技能调用结果。"""
+
     skill_name: str
     success: bool
     data: dict[str, Any] = Field(default_factory=dict)
@@ -59,12 +66,25 @@ class SkillResult(BaseModel):
 
 
 class ContextFact(BaseModel):
+    """共享事实片段。"""
+
     key: str
     value: Any
 
 
+class KnowledgeChunk(BaseModel):
+    """RAG 检索得到的知识片段。"""
+
+    chunk_id: str
+    title: str
+    content: str
+    source: str
+    score: float = 0.0
+
+
 class SharedContext(BaseModel):
-    # 这是 Planner 和 Executor 共享的上下文快照，不直接暴露给 HTTP 层。
+    """Planner 和 Executor 共享的上下文快照。"""
+
     session_id: str
     user_query: str
     hard_constraints: dict[str, Any] = Field(default_factory=dict)
@@ -73,12 +93,24 @@ class SharedContext(BaseModel):
     facts: list[ContextFact] = Field(default_factory=list)
     memory_summary: str = ""
     latest_observations: list[ExecutionObservation] = Field(default_factory=list)
+    retrieved_knowledge: list[KnowledgeChunk] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class GuardrailDecision(BaseModel):
+    """Guardrail 节点的决策结果。"""
+
+    allowed: bool
+    reasons: list[str] = Field(default_factory=list)
 
 
 class TaskResult(BaseModel):
-    # 工作流输出统一收敛到这个模型，方便存储层直接落会话结果。
+    """一次完整工作流执行后的收敛结果。"""
+
     session_id: str
     status: str
-    current_plan: ExecutionPlan
+    current_plan: Optional[ExecutionPlan] = None
     observations: list[ExecutionObservation] = Field(default_factory=list)
     final_result: dict[str, Any] = Field(default_factory=dict)
+    iteration_count: int = 0
+    error_message: Optional[str] = None

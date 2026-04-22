@@ -17,6 +17,7 @@ import urllib.request
 
 
 def main() -> int:
+    """向本地服务发送创建会话请求，并打印接口返回结果。"""
     parser = argparse.ArgumentParser(description="Create a travel session.")
     # 默认直连本地开发服务，避免引入额外配置成本。
     parser.add_argument("--base-url", default="http://127.0.0.1:8000", help="API base URL")

@@ -1,19 +1,17 @@
-"""演示 LangGraph 条件分支：
-- 根据不同城市，把流程路由到不同分支。
-- 每经过一个节点，都会在控制台打印当前走到哪一步。
-"""
+"""演示 LangGraph 条件分支与 RAG/Guardrail/Judge 骨架。"""
 
 from __future__ import annotations
 
 import json
 
+from travel_agent.app.agents.contracts import SharedContext
 from travel_agent.app.agents.executor.agent import ExecutorAgent
 from travel_agent.app.agents.planner.agent import PlannerAgent
 from travel_agent.app.graph.state import TravelGraphState
 from travel_agent.app.graph.workflow import TravelGraphWorkflow
+from travel_agent.app.rag.service import MockRAGService
 from travel_agent.app.skills.mock_travel import MockTravelSkill
 from travel_agent.app.skills.registry import SkillRegistry
-from travel_agent.app.agents.contracts import SharedContext
 
 
 def build_demo_workflow() -> TravelGraphWorkflow:
@@ -21,7 +19,7 @@ def build_demo_workflow() -> TravelGraphWorkflow:
     skill_registry.register(MockTravelSkill())
     planner = PlannerAgent()
     executor = ExecutorAgent(skill_registry=skill_registry)
-    return TravelGraphWorkflow(planner=planner, executor=executor)
+    return TravelGraphWorkflow(planner=planner, executor=executor, rag_service=MockRAGService())
 
 
 def build_initial_state(session_id: str, query: str, constraints: dict) -> TravelGraphState:
@@ -36,6 +34,8 @@ def build_initial_state(session_id: str, query: str, constraints: dict) -> Trave
         shared_context=context,
         route_trace=[],
         status="running",
+        iteration_count=0,
+        max_iterations=2,
     )
 
 
@@ -49,7 +49,8 @@ def run_case(workflow: TravelGraphWorkflow, session_id: str, query: str, constra
 
     print("最终结果:")
     print(json.dumps(result.final_result, ensure_ascii=False, indent=2))
-    print(f"最终命中的分支: {result.final_result.get('selected_branch', '')}")
+    print(f"最终状态: {result.status}")
+    print(f"最终分支: {result.final_result.get('selected_branch', '')}")
     print(f"路线轨迹: {result.final_result.get('route_trace', [])}")
     print()
 
