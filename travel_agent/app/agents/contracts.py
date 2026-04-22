@@ -7,8 +7,8 @@
 # 启用延迟类型注解。
 from __future__ import annotations
 
-# Any 和 Optional 用来声明灵活字段及可空字段。
-from typing import Any, Optional
+# Any、Literal 和 Optional 用来声明灵活字段、有限取值及可空字段。
+from typing import Any, Literal, Optional
 
 # BaseModel 是 Pydantic 模型基类，
 # Field 用于提供默认工厂和字段元信息。
@@ -152,6 +152,79 @@ class GuardrailDecision(BaseModel):
     allowed: bool
     # reasons 存储未通过的原因列表。
     reasons: list[str] = Field(default_factory=list)
+
+
+class IntentDecision(BaseModel):
+    """用户意图识别结果。"""
+
+    # intent 表示本次请求所属的主意图类别。
+    intent: Literal["new_trip", "modify_trip", "content_recommendation", "budget_optimization"]
+    # reason 表示为什么这样判断。
+    reason: str
+    # confidence 记录一个轻量置信度。
+    confidence: float = 0.0
+
+
+class FollowUpQuestion(BaseModel):
+    """缺失信息追问项。"""
+
+    # field_name 表示缺的是哪个字段。
+    field_name: str
+    # question 是给用户的追问文案。
+    question: str
+    # reason 说明为什么要问这个问题。
+    reason: str
+
+
+class RouteDecision(BaseModel):
+    """规划层路由结果。"""
+
+    # route_name 表示命中的规划策略路线。
+    route_name: str
+    # reason 解释路由依据。
+    reason: str
+
+
+class CandidatePlan(BaseModel):
+    """候选旅行方案。"""
+
+    # candidate_id 是方案唯一标识。
+    candidate_id: str
+    # title 是方案标题。
+    title: str
+    # summary 是方案摘要。
+    summary: str
+    # route_name 表示该方案所属规划路线。
+    route_name: str
+    # daily_outline 是按天输出的行程骨架。
+    daily_outline: list[str] = Field(default_factory=list)
+    # highlights 是方案亮点列表。
+    highlights: list[str] = Field(default_factory=list)
+    # budget_breakdown 是预算拆分。
+    budget_breakdown: dict[str, Any] = Field(default_factory=dict)
+    # estimated_budget 是估算总预算。
+    estimated_budget: float = 0.0
+    # assumptions 记录生成该方案时使用的关键假设。
+    assumptions: list[str] = Field(default_factory=list)
+    # fit_score 是一个用于排序的适配度分数。
+    fit_score: float = 0.0
+
+
+class RiskCheckResult(BaseModel):
+    """候选方案风险检查结果。"""
+
+    # candidate_id 对应被检查的方案。
+    candidate_id: str
+    # passed 表示是否通过检查。
+    passed: bool
+    # issues 记录未通过或需要提醒的问题。
+    issues: list[str] = Field(default_factory=list)
+    # estimated_budget 表示风险检查时采用的预算估值。
+    estimated_budget: float = 0.0
+    # budget_limit 表示用户预算上限。
+    budget_limit: Optional[float] = None
+    # budget_gap 表示超支或余量。
+    budget_gap: float = 0.0
 
 
 class TaskResult(BaseModel):

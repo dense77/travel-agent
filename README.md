@@ -4,17 +4,17 @@
 
 它已经能跑通下面这条链路：
 
-`POST /sessions` 创建会话 -> `POST /sessions/{session_id}/run` 触发工作流 -> `Planner` 生成计划 -> `RAG` 检索本地知识 -> `Executor` 调用 `rag_travel` 技能 -> `GET /sessions/{session_id}` 查询结果
+`POST /sessions` 创建会话 -> `POST /sessions/{session_id}/run` 触发工作流 -> 交互层做意图识别 / 约束提取 / 缺失信息判断 -> 规划层做路由 / 约束分析 / RAG + Skill 收集信息 / 候选方案生成 / 风险检查 -> `GET /sessions/{session_id}` 查询结果
 
 当前实现与代码严格一致：
 - 有 FastAPI 接口
 - 有 LangGraph 工作流
-- 有按城市条件分支的 LangGraph 演示
+- 主工作流已经按“交互层 + 规划层”拆分
+- 仍保留按城市条件分支的 LangGraph 演示脚本
 - 有 Planner / Executor 分层
 - 有内存态会话存储
-- 有一个默认启用的 `rag_travel` 技能
+- 有 `planning_support`、`rag_travel`、`mock_travel` 三个技能
 - 有一个可直接运行的本地 Markdown RAG 知识库
-- 仍保留 `mock_travel` 作为演示和回退能力
 - 没有前端页面
 - 没有真实模型调用
 - 没有 Milvus / Redis / 数据库 / 外部旅游 API
@@ -154,7 +154,9 @@ graph.add_conditional_edges(
 - `create` 返回 `status: created`
 - `run` 返回 `status: finished`
 - `get` 返回 `current_plan`、`observations`、`final_result`
-- `final_result.answer` 中可看到 `Hangzhou`、`West Lake`、`Lingyin Temple`
+- `final_result.candidate_plans` 中可看到 2-3 个候选方案
+- `final_result.recommended_plan` 中可看到推荐方案
+- `final_result.risk_checks` 中可看到预算与约束检查结果
 
 ## 2. 设计说明：为什么这么设计，核心结构是什么
 
@@ -210,11 +212,15 @@ travel_agent/
 2. `InMemoryMemoryStore.create_session`
 3. `POST /sessions/{id}/run`
 4. `TravelGraphWorkflow.invoke`
-5. `planner` 节点调用 [`PlannerAgent`](/Users/dense77/Desktop/Agent/旅游规划agent/travel_agent/app/agents/planner/agent.py)
-6. `executor` 节点调用 [`ExecutorAgent`](/Users/dense77/Desktop/Agent/旅游规划agent/travel_agent/app/agents/executor/agent.py)
-7. `ExecutorAgent` 通过 [`SkillRegistry`](/Users/dense77/Desktop/Agent/旅游规划agent/travel_agent/app/skills/registry.py) 调用 [`MockTravelSkill`](/Users/dense77/Desktop/Agent/旅游规划agent/travel_agent/app/skills/mock_travel.py)
-8. `result` 节点组装 `final_result`
-9. `GET /sessions/{id}` 查询最终状态
+5. `guardrail` 做基础请求校验
+6. `intent_recognition -> constraint_extraction -> missing_info_check`
+7. 如果信息不足，`follow_up` 直接返回追问问题
+8. 如果信息齐全，进入 `planning_router -> constraint_analysis`
+9. `tool_collection` 调用本地 RAG 和 [`planning_support`](/Users/dense77/Desktop/Agent/旅游规划agent/travel_agent/app/skills/planning_support.py)
+10. `candidate_generation` 生成 2-3 个候选方案
+11. `risk_check` 检查约束和预算，不满足时回退再生成一次
+12. `result` 节点组装 `final_result`
+13. `GET /sessions/{id}` 查询最终状态
 
 ### 每层当前职责
 
@@ -222,24 +228,26 @@ travel_agent/
 - 提供 3 个接口：创建、运行、查询
 
 `graph`
-- 用 LangGraph 串起 `planner -> executor -> result`
+- 用 LangGraph 串起“交互层 + 规划层”双层流程
+- 支持追问分支和预算超限回退分支
 
 `planner`
-- 固定产出 1 个步骤
-- 该步骤指定调用 `mock_travel`
+- 判断缺失信息
+- 生成追问问题
+- 基于工具结果生成 2-3 个候选方案并收敛推荐方案
 
 `executor`
-- 读取计划步骤
-- 执行工具调用
-- 把工具结果转成结构化 observation
+- 在规划层负责执行 Skill 调用
+- 把工具结果转成结构化 observation 供候选方案生成和风险检查使用
 
 `memory`
 - 仅做进程内会话保存
 - 服务重启后数据会丢失
 
 `skills`
-- 当前只有 1 个 Mock Skill
-- 返回确定性的演示数据
+- `planning_support` 提供预算基线和规划提示
+- `rag_travel` 保留为 grounded 旅行建议能力
+- `mock_travel` 保留为演示能力
 
 ## 3. 测试说明：验证了什么，还有什么没验证
 
@@ -252,7 +260,7 @@ travel_agent/
 3. `POST /sessions` 可以创建会话
 4. `POST /sessions/{session_id}/run` 可以跑完整个最小闭环
 5. `GET /sessions/{session_id}` 可以查到执行后的最终状态
-6. `Planner -> Executor -> Mock Skill -> Result` 这一条主链路是通的
+6. “意图识别 -> 追问/规划路由 -> RAG + Skill -> 候选方案 -> 风险检查 -> 结果收敛” 主链路是通的
 7. Python 3.9 兼容性问题已经修正过一次，当前代码可以在 3.9 环境运行
 
 ### 当前验证方式
@@ -274,8 +282,7 @@ travel_agent/
 - 并发场景
 - 异常恢复
 - 超时控制
-- RePlan
-- RAG 检索
+- 多轮会话下的真实用户追问补全
 - 外部 API 调用
 - 数据持久化
 - 权限控制
@@ -297,24 +304,24 @@ travel_agent/
 
 1. 结果是 Mock，不是真实旅游规划
 原因：
-- 当前 `MockTravelSkill` 只根据关键词返回固定结构化结果
+- 当前候选方案与预算估算仍是规则和本地技能驱动，不是真实 LLM + 实时供应链数据
 
 2. 没有真实模型调用
 原因：
 - 当前没有接 LLM，也没有 Prompt 设计
 
-3. 没有 RAG / Milvus
+3. 没有外部实时数据
 原因：
-- 当前闭环只验证工作流，不验证知识检索链路
+- 当前只用了本地 Markdown RAG 和本地 Skill，没有接地图、交通、酒店、天气等外部 API
 
 4. 没有 Redis / 数据库
 原因：
 - 当前使用 [`InMemoryMemoryStore`](/Users/dense77/Desktop/Agent/旅游规划agent/travel_agent/app/memory/memory_store.py)
 - 服务一重启，会话状态就丢失
 
-5. 没有 RePlan
+5. 回退能力仍是轻量版
 原因：
-- 当前工作流只跑单次 `planner -> executor -> result`
+- 当前只支持一次预算超限回退，不是完整的多轮 RePlan 体系
 
 6. 没有真实外部服务
 原因：

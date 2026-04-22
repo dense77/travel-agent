@@ -29,6 +29,8 @@ from travel_agent.app.runtime.task_dispatcher import InlineTaskDispatcher, Threa
 from travel_agent.app.services.session_service import SessionService
 # MockTravelSkill 是当前默认技能。
 from travel_agent.app.skills.mock_travel import MockTravelSkill
+# PlanningSupportSkill 为规划层提供预算和节奏基线。
+from travel_agent.app.skills.planning_support import PlanningSupportSkill
 # RAGTravelSkill 会基于检索结果生成 grounded 建议。
 from travel_agent.app.skills.rag_travel import RAGTravelSkill
 # SkillRegistry 负责统一管理技能。
@@ -56,6 +58,8 @@ def create_app() -> FastAPI:
     memory_store = InMemoryMemoryStore()
     # 创建技能注册表。
     skill_registry = SkillRegistry()
+    # 注册规划辅助技能。
+    skill_registry.register(PlanningSupportSkill())
     # 注册默认的 grounded 技能和 mock 技能。
     skill_registry.register(RAGTravelSkill())
     skill_registry.register(MockTravelSkill())

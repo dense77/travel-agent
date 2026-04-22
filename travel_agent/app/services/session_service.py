@@ -92,8 +92,8 @@ class SessionService:
                     shared_context=context,
                     route_trace=[],
                     status="running",
-                    iteration_count=0,
-                    max_iterations=self._settings.agent_max_iterations,
+                    candidate_retry_count=0,
+                    candidate_retry_needed=False,
                 )
             )
             # 把最终结果写回存储层。
