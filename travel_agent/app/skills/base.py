@@ -1,47 +1,54 @@
-"""作用：
-- 定义技能抽象基类，以及把技能适配成 LangChain Tool 的桥接层。
+"""技能抽象基类与 Tool 适配层。"""
 
-约定：
-- 项目内部技能统一实现 `BaseSkill.invoke`。
-- 执行器实际取到的是 `StructuredTool`，因此这里负责两套接口之间的转换。
-"""
-
+# 启用延迟类型注解。
 from __future__ import annotations
 
+# ABC 和 abstractmethod 用来定义抽象技能接口。
 from abc import ABC, abstractmethod
 
+# StructuredTool 用来兼容 LangChain/LangGraph 的工具形态。
 from langchain_core.tools import StructuredTool
+# BaseModel 用来定义 Tool 入参模型。
 from pydantic import BaseModel
 
+# 导入项目内部统一的技能请求和响应模型。
 from travel_agent.app.agents.contracts import SkillRequest, SkillResult
 
 
 class SkillToolInput(BaseModel):
-    # 这是 LangChain Tool 层看到的入参结构，字段名需要和执行器调用一致。
+    """LangChain Tool 层看到的入参。"""
+
+    # session_id 用来标识会话。
     session_id: str
+    # parameters 是结构化参数字典。
     parameters: dict
+    # idempotency_key 用来支持幂等控制。
     idempotency_key: str
 
 
 class BaseSkill(ABC):
+    """项目内部技能抽象基类。"""
+
+    # name 是技能唯一名称。
     name: str
+    # description 是技能说明。
     description: str
 
     @abstractmethod
     def invoke(self, request: SkillRequest) -> SkillResult:
-        """执行技能核心逻辑，并返回统一格式的技能结果。"""
-        # 所有具体技能都必须返回统一的 `SkillResult`，避免执行层分支处理。
-        raise NotImplementedError
+        """执行技能，并返回统一格式结果。"""
 
 
 class LangChainToolAdapter:
+    """把内部技能包装成 LangChain Tool 的适配器。"""
+
     def __init__(self, skill: BaseSkill) -> None:
-        """保存一个项目内部技能实例，供后续适配成 LangChain Tool。"""
+        """保存一个具体技能实例。"""
         self._skill = skill
 
     def as_tool(self) -> StructuredTool:
-        """把内部技能包装成 LangChain/LangGraph 可直接调用的工具对象。"""
-        # 每次按技能实例生成一个 Tool，方便直接挂到 LangChain/LangGraph 生态。
+        """把内部技能转换成 LangChain 可识别的 Tool。"""
+        # 这里用 from_function 生成一个结构化工具对象。
         return StructuredTool.from_function(
             func=self._invoke_tool,
             name=self._skill.name,
@@ -50,8 +57,8 @@ class LangChainToolAdapter:
         )
 
     def _invoke_tool(self, session_id: str, parameters: dict, idempotency_key: str) -> dict:
-        """接收 Tool 层入参，转成项目内部请求模型后执行技能。"""
-        # Tool 层最终返回原生字典，执行器再把它校验回 `SkillResult`。
+        """把 Tool 层参数转换成项目内部 SkillRequest。"""
+        # 调用内部技能并拿到结构化 SkillResult。
         result = self._skill.invoke(
             SkillRequest(
                 session_id=session_id,
@@ -59,4 +66,5 @@ class LangChainToolAdapter:
                 idempotency_key=idempotency_key,
             )
         )
+        # 再把 SkillResult 转成普通字典返回给 Tool 层。
         return result.model_dump()
